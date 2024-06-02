@@ -8,7 +8,7 @@
 Connect an FTDI USB serial interface to the pads  as seen in the photo.
 ![Serial Connection](res/program.png)
 
-Use STM32Prg to flash the firmware. 
+Use STM32Prg to flash the firmware. Use the `CANFilterBNSEmulator.bin` file in the `firmware` directory.
 
 ![stm32prg](res/stm32prg.png)
 
