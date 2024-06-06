@@ -13,7 +13,7 @@ Connect an FTDI USB serial interface to the pads as seen in the photo.
 
 Make certain the Boot0 pin is getting 3.3V. This will put the MCU into bootloader mode.
 
-Before disconnecting power from the board after flashing, disconnect Boot0 first! This is very important. Failing to do this will wipe the recently flashed firmware image. 
+Before disconnecting power from the board after flashing, disconnect Boot0 first! This is very important. Failing to do this will wipe the recently flashed firmware image.
 
 ![Serial Connection](res/program.png)
 
@@ -22,3 +22,8 @@ Before disconnecting power from the board after flashing, disconnect Boot0 first
 The first time you press connect, you may see this error. Keep trying. I always see it at least once.
 
 ![error](res/error.png)
+
+## Acknowledgments
+
+- **Andras Kabai** for his web page: [Hacking a Mileage Manipulator CAN Bus Filter Device](https://dangerouspayload.com/2020/03/10/hacking-a-mileage-manipulator-can-bus-filter-device/)
+- **Elias Kotlyar** for his GitHub repository: [Canfilter](https://github.com/EliasKotlyar/Canfilter)
