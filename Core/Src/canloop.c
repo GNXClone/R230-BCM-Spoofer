@@ -53,17 +53,37 @@ static void sendCANFrame(CAN_HandleTypeDef *can, uint32_t id, uint32_t len, uint
 	}
 }
 
+#define COUNTER_INIT 4
+
 void canloop(CAN_HandleTypeDef *can1) {
   int rc;
+  int counter = COUNTER_INIT;
+  int ledState = GPIO_PIN_SET;
+  uint32_t lastFrameTime = HAL_GetTick(); // Track time of the last received frame
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, ledState); // Initially LED is on
+
   while (1) {
     if ((rc = HAL_CAN_GetRxFifoFillLevel(can1, CAN_RX_FIFO0)) > 0) {
       if ((rc = HAL_CAN_GetRxMessage(can1, CAN_RX_FIFO0, &RxHeader, RxData)) == HAL_OK) {
         printReceivedFrame();
-        if (RxHeader.StdId == 0x0003) {
+        lastFrameTime = HAL_GetTick(); // Reset the timeout timer
+
+        if (RxHeader.StdId == 0x0000) { // EZS_A1
+          counter--;
+          if (counter <= 0) {
+            ledState = ledState == GPIO_PIN_SET ? GPIO_PIN_RESET : GPIO_PIN_SET;
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, ledState);
+            counter = COUNTER_INIT;
+          }
           sendCANFrame(can1, 0x0009, sizeof(BNS_A1_DATA), BNS_A1_DATA);
         }
       }
-    } else {
+    }
+
+    // If 10 seconds have passed since the last received frame or since boot-up, go to sleep and turn off the LED
+    if (HAL_GetTick() - lastFrameTime > 10000) {
+      counter = COUNTER_INIT;
+      HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET); // Turn off the LED
       HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
     }
   }
