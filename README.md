@@ -9,7 +9,7 @@ All boards arrive with 120ohm terminating resistors on the CAN bus. Remove the r
 
 ### Green Board
 
-This is the recommended board. The advantage to this particular one, with the 100 pin STM32F105VCT6 MCU, is that it consumes less than 20mA when idle. The other boards consume 40mA when idle. This is important when the board is powered by the consumer battery when parked and off. This MCU also has 256kB. Not important for this application, but could be handy if you want to make a CAN gateway, MITM CAN spy,etc. This board has configurable terminating resistors, you can de-solder the shorting blobs to disconnect the resistors. So far, all green boards have serial programming pads and therefore require the use of an FTDI adapter or similar. Boot0 must be pulled high at power up to place it into flash programming mode.
+This is the recommended board. The advantage to this particular one, with the 100 pin STM32F105VCT6 MCU, is that it consumes less than 20mA when idle. The other boards consume 40mA when idle. This is important when the board is powered by the consumer battery when parked and off. This MCU also has 256kB. Not important for this application, but could be handy if you want to make a CAN gateway, MITM CAN spy, etc. This board has configurable terminating resistors, you can de-solder the shorting blobs to disconnect the resistors. So far, all green boards have serial programming pads and therefore require the use of an FTDI adapter or similar. Boot0 must be pulled high at power up to place it into flash programming mode.
 
 <img src="res/green.png" alt="Green Board" width="800"/>
 
@@ -32,9 +32,9 @@ This board does not expose USART1 pins, but you can get USART3 on the W222 and W
 
 ### Black Board
 
-This board is very similar to the blue board in-that it also exposes the SWDIO, SWCLK pins for programming. However, this board doesn't expose the BOOT0 pin. This makes programming the black board a bit more challenging. Again, BOOT0 must be pulled high at power up to place it into flash programming mode. To accomplish this, I manually held a wire to bring BOOT0 high as I plugged the STLINK into the USB port. I was not able to connect to the board without doing this. The reason is, the stock firmware the board arrives with remaps the SWCLK pin as a GPIO input. Holding BOOT0 high at power up boots the MCU into the bootloader vs the stock firmware and the SWCLK pin is not remapped.
+This board is very similar to the blue board in-that it also exposes the SWDIO, SWCLK pins for programming. However, this board doesn't expose the BOOT0 pin. This makes programming the black board a bit more challenging. Again, BOOT0 must be pulled high at power up to place it into flash programming mode. To accomplish this, I manually held a wire to bring BOOT0 high as I plugged the ST-LINK into the USB port. I was not able to connect to the board without doing this. The reason is, the stock firmware the board arrives with remaps the SWCLK pin as a GPIO input. Holding BOOT0 high at power up boots the MCU into the bootloader vs the stock firmware such that the SWCLK pin is not remapped.
 
-Once the board is re-flashed, you won't need to hold BOOT0 high again. When the board boots with the new firmware, SWCLK is available.
+Once the board is re-flashed, you won't need to hold BOOT0 high again. When the board boots with the new firmware provided here, SWCLK will remain available.
 
 
 <img src="res/Black.png" alt="Black Board (Front)" width="800"/>
