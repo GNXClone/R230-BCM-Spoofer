@@ -106,7 +106,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  canloop(&hcan1);
+  canloop();
 
   while (1)
   {
