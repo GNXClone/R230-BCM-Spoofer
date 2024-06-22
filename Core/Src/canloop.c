@@ -34,7 +34,7 @@ static char msgBuf[128];
 
 static const CAN_FRAME BNS_A1 = { BNS_A1_ID, 3, { 0x00, 0x00, 0x20 } };
 
-static const CAN_FRAME NM_BNS_RESPONSE[5] = {
+static CAN_FRAME NM_BNS_RESPONSE[5] = {
   { NM_BNS_ID, 8, { 0xfe, 0x1f, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff } }, // State 0
   { NM_BNS_ID, 8, { 0xfd, 0x01, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff } }, // State 1
   { NM_BNS_ID, 8, { 0xfe, 0x00, 0x3f, 0xff, 0xff, 0xff, 0xff, 0xff } }, // State 2
@@ -90,11 +90,8 @@ static int handleCANFrame(const CAN_FRAME* frame) {
         break;
       } else if (frame->data[0] == 0xfe && frame->data[1] == 0x01 && nm_bns_state == 2) {
         sendCANFrame(&NM_BNS_RESPONSE[nm_bns_state]); nm_bns_state++; // Set State-3
-      } else if (frame->data[0] == 0xfd && frame->data[1] == 0x01 && nm_bns_state == 3) {
-        sendCANFrame(&NM_BNS_RESPONSE[nm_bns_state]);
-      } else if (frame->data[0] == 0xfe && frame->data[1] == 0x00 && nm_bns_state == 3) {
-        sendCANFrame(&NM_BNS_RESPONSE[0]);
-      } else {
+      } else if (nm_bns_state == 3) {
+        NM_BNS_RESPONSE[nm_bns_state].data[0] = frame->data[0];
         sendCANFrame(&NM_BNS_RESPONSE[nm_bns_state]);
       }
       break;
@@ -143,8 +140,10 @@ void canloop() {
       }
     }
 
-    // If 10 seconds have passed since the last received frame or since boot-up, go to sleep and turn off the LED
-    if (HAL_GetTick() - lastFrameTime > 10000) {
+    // If 3 seconds have passed since the last received frame or since boot-up, go to sleep and turn off the LED
+    if (HAL_GetTick() - lastFrameTime > 3000) {
+      nm_bns_state = 0;
+      sg_appl_bns_toggle = 0x83;
       counter = COUNTER_INIT;
       HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET); // Turn off the LED
       HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
