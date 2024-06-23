@@ -1,6 +1,6 @@
 # Spoof a healthy BCM/BNS on the R230 CAN-B bus to extinguish the red battery warning from the instrument panel.
 
-Note: This is a work in progress. Currently the battery warning will re-appear spontaneously for a couple seconds. Still figuring out the required CAN message flow.
+Note: This is a work in progress. Currently the battery warning may re-appear spontaneously for a couple seconds. Still figuring out the required CAN message flow.
 
 ## Boards
 
