@@ -1,7 +1,5 @@
 # Spoof a healthy BCM/BNS on the R230 CAN-B bus to extinguish the red battery warning from the instrument panel.
 
-Note: This is a work in progress. Currently the battery warning may re-appear spontaneously for a couple seconds. Still figuring out the required CAN message flow.
-
 ## Boards
 
 I have experimented with several types of boards, all available from AliExpress. The boards are all based on the STM32F105 microcontroller. The boards are all similar in design and function. The boards are available in green, blue and black.  
