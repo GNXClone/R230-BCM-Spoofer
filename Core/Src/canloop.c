@@ -34,7 +34,7 @@ typedef struct {
 #define NM_BNS_ID       0x41f
 #define SG_APPL_BNS_ID  0x7ef
 
-#define KEYLESS_GO_ACTIVE   0x80 // Key is inserted
+#define KEYLESS_GO_ACTIVE   0x80 // Keyless Go terminal control active
 #define STARTER_ACTIVE      0x40 // Terminal 50
 #define KEY_INSERTED        0x10 // Key is inserted
 #define KEY_ACCESSORY_ON    0x01 // Terminal 15c on
@@ -123,6 +123,9 @@ static int handleCANFrame (const CAN_FRAME* recvFrame) {
   switch (recvFrame->id) {
     case EZS_A1_ID: { // EZS A1
 #if DEBUG_MODE == 1
+      if ((ignitionState & KEYLESS_GO_ACTIVE) != (recvFrame->data[0] & KEYLESS_GO_ACTIVE)) {
+        sprintf(msgBuf, "KEYLESS_GO: %s\r\n", recvFrame->data[0] & KEYLESS_GO_ACTIVE ? "ACTIVE" : "IDLE"); sendSerialMsg(msgBuf);
+      }
       if ((ignitionState & KEY_ACCESSORY_ON) != (recvFrame->data[0] & KEY_ACCESSORY_ON)) {
         sprintf(msgBuf, "KEY_ACCESSORY: %s\r\n", recvFrame->data[0] & KEY_ACCESSORY_ON ? "ON" : "OFF"); sendSerialMsg(msgBuf);
       }
@@ -169,7 +172,7 @@ static int handleCANFrame (const CAN_FRAME* recvFrame) {
   return 1;
 }
 
-void send_NM_BNS (uint32_t currTime) {
+static void send_NM_BNS (uint32_t currTime) {
   if (nm_bns_timeout == 0) {
     nm_bns_timeout = currTime + 60; // Delay 60 msec before sending the first frame
   } else if (currTime > nm_bns_timeout) {
@@ -180,7 +183,7 @@ void send_NM_BNS (uint32_t currTime) {
   }
 }
 
-void send_BNS_A1 (uint32_t currTime) {
+static void send_BNS_A1 (uint32_t currTime) {
   if (bns_a1_timeout == 0) {
     bns_a1_timeout = currTime + 140; // Delay 140 msec before sending the first frame
   } else if (currTime > bns_a1_timeout) {
@@ -189,7 +192,7 @@ void send_BNS_A1 (uint32_t currTime) {
   }
 }
 
-void send_SG_APPL_BNS (uint32_t currTime) {
+static void send_SG_APPL_BNS (uint32_t currTime) {
   if (sg_appl_bns_timeout == 0) {
     sg_appl_bns_timeout = currTime + 220; // Delay 220 msec before sending the first frame
   } else if (currTime > sg_appl_bns_timeout) {
@@ -199,16 +202,17 @@ void send_SG_APPL_BNS (uint32_t currTime) {
   }
 }
 
-void sendPeriodicFrames (uint32_t currTime) {
-  // Only send BNS frames when the accessory power (Terminal 15c) is on
-  if (ignitionState & KEY_ACCESSORY_ON) {
+static void sendPeriodicFrames (uint32_t currTime) {
+  // Send BNS frames when the accessory power (Terminal 15c) or Keyless-Go are on
+  // Or, send one initial burst of frames when coming out of sleep mode
+  if ((ignitionState & (KEY_ACCESSORY_ON | KEYLESS_GO_ACTIVE)) || (sleep_timeout == 0)) {
     send_NM_BNS(currTime);
     send_BNS_A1(currTime);
     send_SG_APPL_BNS(currTime);
   }
 }
 
-void toggleLED (uint32_t currTime) {
+static void toggleLED (uint32_t currTime) {
   if (currTime > led_toggle_timeout) {
     ledState = ledState == GPIO_PIN_SET ? GPIO_PIN_RESET : GPIO_PIN_SET;
     HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, ledState);
@@ -221,7 +225,7 @@ void toggleLED (uint32_t currTime) {
 //   or since boot-up, reset state, turn off the LED and go to sleep.
 // canSleep = 0: Exit sleep mode
 //   Reset the sleep timeout.
-void powerManagement (uint32_t currTime, int canSleep) {
+static void powerManagement (uint32_t currTime, int canSleep) {
   if (sleep_timeout == 0 || canSleep == 0) {
     sleep_timeout = currTime + SLEEP_TIMEOUT;
   } else if (currTime > sleep_timeout) {
@@ -239,26 +243,35 @@ void powerManagement (uint32_t currTime, int canSleep) {
   }
 }
 
+static int recvFrame (CAN_FRAME* frame) {
+  int rc;
+  CAN_RxHeaderTypeDef canHeader;
+
+  if ((rc = HAL_CAN_GetRxFifoFillLevel(&hcan1, CAN_RX_FIFO0)) > 0) {
+    if ((rc = HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &canHeader, frame->data)) == HAL_OK) {
+      frame->id = canHeader.StdId;
+      frame->len = canHeader.DLC;
+      return 1;
+    }
+  }
+  return 0;
+}
+
 void canloop () {
-  int                   rc;
-  uint32_t              currTime;
-  CAN_FRAME             frame;
-  CAN_RxHeaderTypeDef   canHeader;
+  uint32_t  currTime;
+  CAN_FRAME frame;
 
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET); // Initially the LED is on
 
   while (1) {
     currTime = HAL_GetTick();
-    if ((rc = HAL_CAN_GetRxFifoFillLevel(&hcan1, CAN_RX_FIFO0)) > 0) {
-      if ((rc = HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &canHeader, frame.data)) == HAL_OK) {
-        powerManagement(currTime, 0);
-        frame.id = canHeader.StdId;
-        frame.len = canHeader.DLC;
-        sendPeriodicFrames(currTime);
-        toggleLED(currTime); // Blink the LED
-        handleCANFrame(&frame);
-        printReceivedFrame(&frame); // Send frame to Serial for SavvyCAN, etc
-      }
+
+    if (recvFrame(&frame)) {
+      sendPeriodicFrames(currTime);
+      toggleLED(currTime); // Blink the LED
+      handleCANFrame(&frame);
+      printReceivedFrame(&frame); // Send frame to Serial for SavvyCAN, etc
+      powerManagement(currTime, 0);
     }
 
     powerManagement(currTime, 1);
