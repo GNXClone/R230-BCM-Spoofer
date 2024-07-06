@@ -2,7 +2,7 @@
 
 ## Boards
 
-I have experimented with several types of boards, all available from AliExpress. The boards are all based on the STM32F105 microcontroller. The boards are all similar in design and function. The boards are available in green, blue and black.  
+I have experimented with several types of boards, all available from AliExpress. The boards are all based on the STM32F105 microcontroller. The boards are all similar in design and function. The boards are available in green, blue. Avoid other colors.  
 
 All boards arrive with 120ohm terminating resistors on the CAN bus. Remove the resistors or remove any solder blobs which enable them. Be sure to connect CAN 1 to the CAN-B bus. CAN 2 is not used in this implementation.
 
@@ -29,16 +29,7 @@ This board does not expose USART1 pins, but you can get USART3 on the W222 and W
 
 <img src="res/blue.png" alt="Blue Board" width="800"/>
 
-### Black Board
-
-This board is very similar to the blue board in-that it also exposes the SWDIO, SWCLK pins for programming. However, this board doesn't expose the BOOT0 pin. This makes programming the black board a bit more challenging. Again, BOOT0 must be pulled high at power up to place it into flash programming mode. To accomplish this, I manually held a wire to bring BOOT0 high as I plugged the ST-LINK into the USB port. I was not able to connect to the board without doing this. The reason is, the stock firmware the board arrives with remaps the SWCLK pin as a GPIO input. Holding BOOT0 high at power up boots the MCU into the bootloader vs the stock firmware such that the SWCLK pin is not remapped.
-
-Once the board is re-flashed, you won't need to hold BOOT0 high again. When the board boots with the new firmware provided here, SWCLK will remain available.
-
-
-<img src="res/Black.png" alt="Black Board (Front)" width="800"/>
-
-<img src="res/BlackBack.png" alt="Black Board (Back)" width="800"/>
+### Avoid any other boards. I have not been able to get a black board working. They also don't have genuine ST Micro MCUs
 
 
 ## Programming
@@ -61,17 +52,15 @@ The first time you press connect, you may see this error. Keep trying. I always 
 
 ![error](res/error.png)
 
-### Blue and black board
+### Blue board
 
-The blue and black boards use an ST-LINK V2 programmer. Connect the ST-LINK to the SWDIO, SWCLK and BOOT0 pins. Ensure BOOT0 is pulled high (3.3v) at power up to place it into flash programming mode.
+The blue boards use an ST-LINK V2 programmer. Connect the ST-LINK to the SWDIO, SWCLK and BOOT0 pins. Ensure BOOT0 is pulled high (3.3v) at power up to place it into flash programming mode.
 
 <img src="res/STLINK.png" alt="ST-LINK V2" width="800"/>
 
-The black board doesn't expose a pad for BOOT0. You will need to manually hold a wire to bring BOOT0 high as you plug the ST-LINK into the USB port. As seen here:
+Connected:
 
-<img src="res/HoldingBoot0High.png" alt="BOOT0" width="800"/>
-
-<img src="res/BlackBoardConnected.png" alt="ST-LINK Connected" width="800"/>
+<img src="res/Connected.png" alt="ST-LINK Connected" width="800"/>
 
 ### Acknowledgments
 
