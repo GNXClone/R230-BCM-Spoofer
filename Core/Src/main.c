@@ -227,8 +227,8 @@ static void MX_CAN1_Init(void)
   */
 static void MX_CAN2_Init(void)
 {
-
   /* USER CODE BEGIN CAN2_Init 0 */
+#if ENABLE_CAN_2 == 1
   CAN_FilterTypeDef sFilterConfig;
   /* USER CODE END CAN2_Init 0 */
 
@@ -272,8 +272,8 @@ static void MX_CAN2_Init(void)
     /* Start Error */
     Error_Handler();
   }
+#endif
   /* USER CODE END CAN2_Init 2 */
-
 }
 
 /**
@@ -283,9 +283,8 @@ static void MX_CAN2_Init(void)
   */
 static void MX_USART1_UART_Init(void)
 {
-
   /* USER CODE BEGIN USART1_Init 0 */
-
+#if ENABLE_USART_1 == 1
   /* USER CODE END USART1_Init 0 */
 
   /* USER CODE BEGIN USART1_Init 1 */
@@ -304,9 +303,8 @@ static void MX_USART1_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART1_Init 2 */
-
+#endif
   /* USER CODE END USART1_Init 2 */
-
 }
 
 /**
@@ -316,9 +314,8 @@ static void MX_USART1_UART_Init(void)
   */
 static void MX_USART3_UART_Init(void)
 {
-
   /* USER CODE BEGIN USART3_Init 0 */
-
+#if ENABLE_USART_3 == 1
   /* USER CODE END USART3_Init 0 */
 
   /* USER CODE BEGIN USART3_Init 1 */
@@ -337,9 +334,8 @@ static void MX_USART3_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART3_Init 2 */
-
+#endif
   /* USER CODE END USART3_Init 2 */
-
 }
 
 /**
@@ -354,9 +350,9 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOD_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOC_CLK_ENABLE();
+//  __HAL_RCC_GPIOD_CLK_ENABLE();
+//  __HAL_RCC_GPIOA_CLK_ENABLE();
+//  __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
@@ -374,7 +370,26 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void EnterSleepMode(void) {
+  // Turn off the LED and de-initialize the GPIO pin
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_9);
+  __HAL_RCC_GPIOB_CLK_DISABLE();
 
+  // Power off USART1 and de-initialize the UART
+  HAL_UART_DeInit(&huart1);
+  __HAL_RCC_USART1_CLK_DISABLE();
+}
+
+void ExitSleepMode(void) {
+  // Re-enable the GPIOB clock and re-initialize the GPIO pin
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  MX_GPIO_Init();
+
+  // Re-enable USART1 clock and re-initialize the UART
+  __HAL_RCC_USART1_CLK_ENABLE();
+  MX_USART1_UART_Init();
+}
 /* USER CODE END 4 */
 
 /**

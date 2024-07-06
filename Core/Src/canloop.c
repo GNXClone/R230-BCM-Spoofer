@@ -1,5 +1,6 @@
 #include "main.h"
 #include <string.h>
+#include <stdarg.h>
 #include <stdio.h>
 
 extern CAN_HandleTypeDef  hcan1;
@@ -17,7 +18,7 @@ typedef struct {
   CAN_FRAME responseFrame;
 } CAN_RESPONSE_TABLE;
 
-#define DEBUG_MODE            0
+#define DEBUG_MODE            1
 #define ENABLE_SLCAN          1
 
 #define SLEEP_TIMEOUT         3000
@@ -27,12 +28,12 @@ typedef struct {
 #define SG_APPL_BNS_INTERVAL  100
 #define LED_TOGGLE_TIMEOUT    1000
 
-#define EZS_A1_ID       0x000 // Triggers the send of BNS_A1
-#define BNS_A1_ID       0x009
-#define SAM_F_A2_ID     0x028 // Triggers the send of SG_APPL_BNS
-#define NM_EZS_ID       0x400 // Triggers the send of NM_BNS
-#define NM_BNS_ID       0x41f
-#define SG_APPL_BNS_ID  0x7ef
+#define EZS_A1_ID           0x000 // Triggers the send of BNS_A1
+#define BNS_A1_ID           0x009
+#define SAM_F_A2_ID         0x028 // Triggers the send of SG_APPL_BNS
+#define NM_EZS_ID           0x400 // Triggers the send of NM_BNS
+#define NM_BNS_ID           0x41f
+#define SG_APPL_BNS_ID      0x7ef
 
 #define KEYLESS_GO_ACTIVE   0x80 // Keyless Go terminal control active
 #define STARTER_ACTIVE      0x40 // Terminal 50
@@ -42,16 +43,16 @@ typedef struct {
 #define MAIN_IGN_ON         0x04 // Terminal 15 on
 #define COURTESY_POWER      0x08 // Terminal 15x
 
-// BNS codes
+// BNS trouble codes
 // Data byte 0
-#define BN_Warn1    0x01 // OFFSET 7 LEN 1 - Vehicle electrical system warning: Emergency operation (Prio1 and Prio2 consumers off, starter battery supports)
-#define BN_Warn2    0x02 // OFFSET 6 LEN 1 - On-board power supply warning: emergency operation (Prio1 or Prio2 consumers off)
-#define BN_Warn3    0x04 // OFFSET 5 LEN 1 - Vehicle electrical system warning: Relay K2 defective
-#define BN_Warn4    0x08 // OFFSET 4 LEN 1 - Vehicle electrical system warning: Starter battery fuse defective
-#define BN_Warn5    0x10 // OFFSET 3 LEN 1 - Vehicle electrical system warning: "Key is inserted" not recognized
-#define BN_NTLF_P2  0x20 // OFFSET 2 LEN 1 - On-board network emergency operation: Prio2 consumer off
-#define BN_NTLF_P1  0x40 // OFFSET 1 LEN 1 - On-board network emergency operation: Prio1 consumer off
-#define BN_NTLF     0x80 // OFFSET 0 LEN 1 - On-board network emergency operation: Prio1 and Prio2 consumers off, second battery supports
+#define BN_Warn1            0x01 // OFFSET 7 LEN 1 - Vehicle electrical system warning: Emergency operation (Prio1 and Prio2 consumers off, starter battery supports)
+#define BN_Warn2            0x02 // OFFSET 6 LEN 1 - On-board power supply warning: emergency operation (Prio1 or Prio2 consumers off)
+#define BN_Warn3            0x04 // OFFSET 5 LEN 1 - Vehicle electrical system warning: Relay K2 defective
+#define BN_Warn4            0x08 // OFFSET 4 LEN 1 - Vehicle electrical system warning: Starter battery fuse defective
+#define BN_Warn5            0x10 // OFFSET 3 LEN 1 - Vehicle electrical system warning: "Key is inserted" not recognized
+#define BN_NTLF_P2          0x20 // OFFSET 2 LEN 1 - On-board network emergency operation: Prio2 consumer off
+#define BN_NTLF_P1          0x40 // OFFSET 1 LEN 1 - On-board network emergency operation: Prio1 consumer off
+#define BN_NTLF             0x80 // OFFSET 0 LEN 1 - On-board network emergency operation: Prio1 and Prio2 consumers off, second battery supports
 
 // Data byte 1
 #define BN_SOHS_VB  0x10 // OFFSET 11 LEN 1 - Vehicle electrical system warning: State of Health supply battery
@@ -61,6 +62,11 @@ typedef struct {
 
 #define BATTERY_LOW_THRESHOLD 108 // 10.8V
 
+#define TRUE   1
+#define FALSE  0
+#define AWAKE  0
+#define ASLEEP 1
+
 static char msgBuf[128];
 
 static CAN_FRAME BNS_A1      = { BNS_A1_ID, 3, { 0x00, 0x00, 0x20 } };
@@ -69,6 +75,7 @@ static CAN_FRAME NM_BNS_NEXT = { NM_BNS_ID, 8, { 0xfd, 0x01, 0x3f, 0xff, 0xff, 0
 static CAN_FRAME SG_APPL_BNS = { SG_APPL_BNS_ID, 8, { 0xbb, 0xb0, 0x03, 0x00, 0xb0, 0xb0, 0x00, 0x09 } };
 
 static int      ledState            = GPIO_PIN_SET;
+static int      sleepState          = AWAKE; // 0: Awake, 1: Asleep
 static uint8_t  ignitionState       = 0;
 static uint8_t  batteryVoltage      = 0; // Value / 10 == battery voltage
 static uint32_t sleep_timeout       = 0;
@@ -78,13 +85,38 @@ static uint32_t sg_appl_bns_timeout = 0;
 static uint32_t led_toggle_timeout  = 0;
 
 static void sendSerialMsg (char* msg) {
+#if ENABLE_USART_1 == 1
   HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), USART_TIMEOUT);
+#endif
+#if ENABLE_USART_3 == 1
   HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), USART_TIMEOUT);
+#endif
 }
 
 static void printError (char* iface, char* desc, int errno) {
   snprintf(msgBuf, sizeof(msgBuf), "%s: %d\r\n", desc, errno);
   sendSerialMsg(msgBuf);
+}
+
+/**
+ * Sends a formatted debug message over serial.
+ * This function behaves similarly to printf, formatting the given string and arguments
+ * and then sending the resulting string using sendSerialMsg.
+ *
+ * @param format The format string.
+ * @param ... The values to format according to the format string.
+ */
+static void sendDebugMsg(const char *format, ...) {
+#if DEBUG_MODE == 0
+  return;
+#else
+  char buffer[256]; // Adjust the size according to your needs
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+  sendSerialMsg(buffer);
+#endif
 }
 
 // SLCAN/LAWICEL formatted frame. Can be used with SavvyCAN
@@ -122,29 +154,27 @@ static void sendCANFrame (const CAN_FRAME* frame) {
 static int handleCANFrame (const CAN_FRAME* recvFrame) {
   switch (recvFrame->id) {
     case EZS_A1_ID: { // EZS A1
-#if DEBUG_MODE == 1
       if ((ignitionState & KEYLESS_GO_ACTIVE) != (recvFrame->data[0] & KEYLESS_GO_ACTIVE)) {
-        sprintf(msgBuf, "KEYLESS_GO: %s\r\n", recvFrame->data[0] & KEYLESS_GO_ACTIVE ? "ACTIVE" : "IDLE"); sendSerialMsg(msgBuf);
+        sendDebugMsg("KEYLESS_GO: %s\r\n", recvFrame->data[0] & KEYLESS_GO_ACTIVE ? "ACTIVE" : "IDLE");
       }
       if ((ignitionState & KEY_ACCESSORY_ON) != (recvFrame->data[0] & KEY_ACCESSORY_ON)) {
-        sprintf(msgBuf, "KEY_ACCESSORY: %s\r\n", recvFrame->data[0] & KEY_ACCESSORY_ON ? "ON" : "OFF"); sendSerialMsg(msgBuf);
+        sendDebugMsg("KEY_ACCESSORY: %s\r\n", recvFrame->data[0] & KEY_ACCESSORY_ON ? "ON" : "OFF");
       }
       if ((ignitionState & KEY_RUN_ON) != (recvFrame->data[0] & KEY_RUN_ON)) {
-        sprintf(msgBuf, "KEY_RUN: %s\r\n", recvFrame->data[0] & KEY_RUN_ON ? "ON" : "OFF"); sendSerialMsg(msgBuf);
+        sendDebugMsg("KEY_RUN: %s\r\n", recvFrame->data[0] & KEY_RUN_ON ? "ON" : "OFF");
       }
       if ((ignitionState & MAIN_IGN_ON) != (recvFrame->data[0] & MAIN_IGN_ON)) {
-        sprintf(msgBuf, "MAIN_IGN: %s\r\n", recvFrame->data[0] & MAIN_IGN_ON ? "ON" : "OFF"); sendSerialMsg(msgBuf);
+        sendDebugMsg("MAIN_IGN: %s\r\n", recvFrame->data[0] & MAIN_IGN_ON ? "ON" : "OFF");
       }
       if ((ignitionState & COURTESY_POWER) != (recvFrame->data[0] & COURTESY_POWER)) {
-        sprintf(msgBuf, "COURTESY_POWER: %s\r\n", recvFrame->data[0] & COURTESY_POWER ? "ON" : "OFF"); sendSerialMsg(msgBuf);
+        sendDebugMsg("COURTESY_POWER: %s\r\n", recvFrame->data[0] & COURTESY_POWER ? "ON" : "OFF");
       }
       if ((ignitionState & KEY_INSERTED) != (recvFrame->data[0] & KEY_INSERTED)) {
-        sprintf(msgBuf, "KEY: %s\r\n", recvFrame->data[0] & KEY_INSERTED ? "INSERTED" : "ABSENT"); sendSerialMsg(msgBuf);
+        sendDebugMsg("KEY: %s\r\n", recvFrame->data[0] & KEY_INSERTED ? "INSERTED" : "ABSENT");
       }
       if (batteryVoltage != recvFrame->data[2]) {
-        sprintf(msgBuf, "Battery voltage: %d\r\n", recvFrame->data[2]); sendSerialMsg(msgBuf);
+        sendDebugMsg("Battery voltage: %d\r\n", recvFrame->data[2]);
       }
-#endif
       ignitionState = recvFrame->data[0];
       batteryVoltage = recvFrame->data[2];
       // If less than 10.8, set BN_Warn2 and BN_SOHS_VB
@@ -226,19 +256,28 @@ static void toggleLED (uint32_t currTime) {
 // canSleep = 0: Exit sleep mode
 //   Reset the sleep timeout.
 static void powerManagement (uint32_t currTime, int canSleep) {
-  if (sleep_timeout == 0 || canSleep == 0) {
+  if (canSleep == FALSE) {
+    if (sleepState == ASLEEP) {
+      sleepState = AWAKE;
+      ExitSleepMode();
+      sendDebugMsg("Exited low power mode\r\n");
+    }
     sleep_timeout = currTime + SLEEP_TIMEOUT;
   } else if (currTime > sleep_timeout) {
-    sleep_timeout       = 0;
-    bns_a1_timeout      = 0;
-    nm_bns_timeout      = 0;
-    sg_appl_bns_timeout = 0;
-    led_toggle_timeout  = 0;
+    if (sleepState == AWAKE) {
+      sleepState = ASLEEP;
+      sleep_timeout       = 0;
+      bns_a1_timeout      = 0;
+      nm_bns_timeout      = 0;
+      sg_appl_bns_timeout = 0;
+      led_toggle_timeout  = 0;
 
-    NM_BNS.data[1] = 0x1f; NM_BNS.data[2] = 0x3f; // Reset NM_BNS state
-    SG_APPL_BNS.data[2] = 0x83;                   // Reset SG_APPL_BNS state
+      NM_BNS.data[1] = 0x1f; NM_BNS.data[2] = 0x3f; // Reset NM_BNS state
+      SG_APPL_BNS.data[2] = 0x83;                   // Reset SG_APPL_BNS state
 
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET); // Turn off the LED
+      sendDebugMsg("Entering low power mode\r\n");
+      EnterSleepMode();
+    }
     HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
   }
 }
@@ -262,6 +301,7 @@ void canloop () {
   CAN_FRAME frame;
 
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET); // Initially the LED is on
+  sleep_timeout = HAL_GetTick() + SLEEP_TIMEOUT;      // Sleep 3 seconds after boot-up if there's no CAN activity
 
   while (1) {
     currTime = HAL_GetTick();
@@ -271,9 +311,9 @@ void canloop () {
       toggleLED(currTime); // Blink the LED
       handleCANFrame(&frame);
       printReceivedFrame(&frame); // Send frame to Serial for SavvyCAN, etc
-      powerManagement(currTime, 0);
+      powerManagement(currTime, AWAKE);
     }
 
-    powerManagement(currTime, 1);
+    powerManagement(currTime, ASLEEP);
   }
 }
