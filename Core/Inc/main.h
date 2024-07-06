@@ -53,7 +53,14 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+#define ENABLE_CAN_1    1
+#define ENABLE_CAN_2    0 // Unused in this implementation
 
+#define ENABLE_USART_1  1 // Green boards
+#define ENABLE_USART_3  0 // Only used on the Blue board via its W222 and W166 config pads (and black board)
+
+void EnterSleepMode(void);
+void ExitSleepMode(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
