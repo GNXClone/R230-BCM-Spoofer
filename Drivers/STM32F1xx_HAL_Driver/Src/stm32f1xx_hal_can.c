@@ -274,7 +274,6 @@
 HAL_StatusTypeDef HAL_CAN_Init(CAN_HandleTypeDef *hcan)
 {
   uint32_t tickstart;
-
   /* Check CAN handle */
   if (hcan == NULL)
   {
@@ -331,6 +330,10 @@ HAL_StatusTypeDef HAL_CAN_Init(CAN_HandleTypeDef *hcan)
 #endif /* (USE_HAL_CAN_REGISTER_CALLBACKS) */
 
   /* Request initialisation */
+  // MAP: Clear these for GD32F105
+  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_DBF);
+
   SET_BIT(hcan->Instance->MCR, CAN_MCR_INRQ);
 
   /* Get tick */

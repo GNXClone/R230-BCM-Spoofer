@@ -106,7 +106,7 @@ static void printError (char* iface, char* desc, int errno) {
  * @param format The format string.
  * @param ... The values to format according to the format string.
  */
-static void sendDebugMsg(const char *format, ...) {
+extern void sendDebugMsg(const char *format, ...) {
 #if DEBUG_MODE == 0
   return;
 #else
@@ -245,7 +245,7 @@ static void sendPeriodicFrames (uint32_t currTime) {
 static void toggleLED (uint32_t currTime) {
   if (currTime > led_toggle_timeout) {
     ledState = ledState == GPIO_PIN_SET ? GPIO_PIN_RESET : GPIO_PIN_SET;
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, ledState);
+    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_9, ledState);
     led_toggle_timeout = currTime + LED_TOGGLE_TIMEOUT;
   }
 }
@@ -300,8 +300,9 @@ void canloop () {
   uint32_t  currTime;
   CAN_FRAME frame;
 
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET); // Initially the LED is on
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_9, GPIO_PIN_SET); // Initially the LED is on
   sleep_timeout = HAL_GetTick() + SLEEP_TIMEOUT;      // Sleep 3 seconds after boot-up if there's no CAN activity
+  sendDebugMsg("CAN loop started\r\n");
 
   while (1) {
     currTime = HAL_GetTick();

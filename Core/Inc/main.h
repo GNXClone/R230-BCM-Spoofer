@@ -57,7 +57,7 @@ void Error_Handler(void);
 #define ENABLE_CAN_2    0 // Unused in this implementation
 
 #define ENABLE_USART_1  1 // Green boards
-#define ENABLE_USART_3  0 // Only used on the Blue board via its W222 and W166 config pads (and black board)
+#define ENABLE_USART_3  1 // Only used on the Blue board via its W222 and W166 config pads (and black board)
 
 void EnterSleepMode(void);
 void ExitSleepMode(void);
