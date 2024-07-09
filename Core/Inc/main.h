@@ -31,7 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+extern void sendDebugMsg(const char *format, ...);
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -53,14 +53,19 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+#define GPIO_PIN_NONE   ((uint16_t)0x0000)
 #define ENABLE_CAN_1    1
 #define ENABLE_CAN_2    0 // Unused in this implementation
 
-#define ENABLE_USART_1  1 // Green boards
-#define ENABLE_USART_3  1 // Only used on the Blue board via its W222 and W166 config pads (and black board)
+extern uint8_t              board_variant;
+extern uint8_t              usart;
+extern uint16_t             led_pin;
+extern uint32_t             board_variants[4][3];
+extern UART_HandleTypeDef*  huart;
 
-void EnterSleepMode(void);
-void ExitSleepMode(void);
+uint8_t GetBoardVariant(void);
+void    EnterSleepMode(void);
+void    ExitSleepMode(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/

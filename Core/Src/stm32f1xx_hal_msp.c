@@ -227,7 +227,6 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
   if(huart->Instance==USART1)
   {
   /* USER CODE BEGIN USART1_MspInit 0 */
-
   /* USER CODE END USART1_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_USART1_CLK_ENABLE();
@@ -235,7 +234,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**USART1 GPIO Configuration
     PA9     ------> USART1_TX
-    PA10     ------> USART1_RX
+    PA10    ------> USART1_RX
     */
     GPIO_InitStruct.Pin = GPIO_PIN_9;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -254,7 +253,46 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
   else if(huart->Instance==USART3)
   {
   /* USER CODE BEGIN USART3_MspInit 0 */
+    // MAP: Override GPIO based on board type
+    extern uint32_t  usart3_gpio;
 
+    if (GPIOB_BASE == usart3_gpio || GPIOC_BASE == usart3_gpio) {
+      /* Peripheral clock enable */
+      __HAL_RCC_USART3_CLK_ENABLE();
+
+      switch (usart3_gpio) {
+        case GPIOB_BASE:
+          __HAL_RCC_GPIOB_CLK_ENABLE();
+          // PB10     ------> USART3_TX
+          // PB11     ------> USART3_RX
+          break;
+        case GPIOC_BASE:
+          __HAL_RCC_GPIOC_CLK_ENABLE();
+          // PC10     ------> USART3_TX
+          // PC11     ------> USART3_RX
+          break;
+        default:
+          return;
+      }
+
+      GPIO_InitStruct.Pin = GPIO_PIN_10;
+      GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+      GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+      HAL_GPIO_Init((GPIO_TypeDef *)usart3_gpio, &GPIO_InitStruct);
+
+      GPIO_InitStruct.Pin = GPIO_PIN_11;
+      GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+      GPIO_InitStruct.Pull = GPIO_NOPULL;
+      HAL_GPIO_Init((GPIO_TypeDef *)usart3_gpio, &GPIO_InitStruct);
+
+      // GPIOC uses alternate mappings for USART3 on Blue Board
+      if (GPIOC_BASE == usart3_gpio) {
+        __HAL_AFIO_REMAP_USART3_PARTIAL();
+      }
+
+      return; // Don't proceed with the default code
+    }
+    // Drop into default initialization, which is the Black Board's USART3
   /* USER CODE END USART3_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_USART3_CLK_ENABLE();

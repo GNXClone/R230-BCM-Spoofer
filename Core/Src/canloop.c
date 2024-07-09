@@ -4,8 +4,6 @@
 #include <stdio.h>
 
 extern CAN_HandleTypeDef  hcan1;
-extern UART_HandleTypeDef huart1;
-extern UART_HandleTypeDef huart3;
 
 typedef struct {
   uint32_t id;
@@ -85,12 +83,7 @@ static uint32_t sg_appl_bns_timeout = 0;
 static uint32_t led_toggle_timeout  = 0;
 
 static void sendSerialMsg (char* msg) {
-#if ENABLE_USART_1 == 1
-  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), USART_TIMEOUT);
-#endif
-#if ENABLE_USART_3 == 1
-  HAL_UART_Transmit(&huart3, (uint8_t*)msg, strlen(msg), USART_TIMEOUT);
-#endif
+  HAL_UART_Transmit(huart, (uint8_t*)msg, strlen(msg), USART_TIMEOUT);
 }
 
 static void printError (char* iface, char* desc, int errno) {
@@ -106,7 +99,7 @@ static void printError (char* iface, char* desc, int errno) {
  * @param format The format string.
  * @param ... The values to format according to the format string.
  */
-extern void sendDebugMsg(const char *format, ...) {
+void sendDebugMsg(const char *format, ...) {
 #if DEBUG_MODE == 0
   return;
 #else
@@ -243,9 +236,9 @@ static void sendPeriodicFrames (uint32_t currTime) {
 }
 
 static void toggleLED (uint32_t currTime) {
-  if (currTime > led_toggle_timeout) {
+  if ((currTime > led_toggle_timeout) && (led_pin != GPIO_PIN_NONE)) {
     ledState = ledState == GPIO_PIN_SET ? GPIO_PIN_RESET : GPIO_PIN_SET;
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_9, ledState);
+    HAL_GPIO_WritePin(GPIOB, led_pin, ledState);
     led_toggle_timeout = currTime + LED_TOGGLE_TIMEOUT;
   }
 }
@@ -260,7 +253,6 @@ static void powerManagement (uint32_t currTime, int canSleep) {
     if (sleepState == ASLEEP) {
       sleepState = AWAKE;
       ExitSleepMode();
-      sendDebugMsg("Exited low power mode\r\n");
     }
     sleep_timeout = currTime + SLEEP_TIMEOUT;
   } else if (currTime > sleep_timeout) {
@@ -275,7 +267,6 @@ static void powerManagement (uint32_t currTime, int canSleep) {
       NM_BNS.data[1] = 0x1f; NM_BNS.data[2] = 0x3f; // Reset NM_BNS state
       SG_APPL_BNS.data[2] = 0x83;                   // Reset SG_APPL_BNS state
 
-      sendDebugMsg("Entering low power mode\r\n");
       EnterSleepMode();
     }
     HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
@@ -300,13 +291,12 @@ void canloop () {
   uint32_t  currTime;
   CAN_FRAME frame;
 
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_9, GPIO_PIN_SET); // Initially the LED is on
-  sleep_timeout = HAL_GetTick() + SLEEP_TIMEOUT;      // Sleep 3 seconds after boot-up if there's no CAN activity
+  sleep_timeout = HAL_GetTick() + SLEEP_TIMEOUT;  // Sleep 3 seconds after boot-up if there's no CAN activity
+  GetBoardVariant();
   sendDebugMsg("CAN loop started\r\n");
 
   while (1) {
     currTime = HAL_GetTick();
-
     if (recvFrame(&frame)) {
       sendPeriodicFrames(currTime);
       toggleLED(currTime); // Blink the LED
