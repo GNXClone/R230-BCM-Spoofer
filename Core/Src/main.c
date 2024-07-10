@@ -33,6 +33,13 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define BOARD_VARIANT_BLACK         0
+#define BOARD_VARIANT_BLUE          1
+#define BOARD_VARIANT_GREEN         2
+#define BOARD_VARIANT_SMALL_GREEN   3
+#define UNKNOWN_BOARD               0xff
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -101,12 +108,6 @@ uint32_t board_variants[4][3] = {
   {0x05d8ff36, 0x37325553, 0x43184563}, // BOARD_VARIANT_GREEN - Verified CAN and USART1
   {0x05d5ff30, 0x38374250, 0x43024338}  // BOARD_VARIANT_SMALL_GREEN - Verified
 };
-
-#define BOARD_VARIANT_BLACK         0
-#define BOARD_VARIANT_BLUE          1
-#define BOARD_VARIANT_GREEN         2
-#define BOARD_VARIANT_SMALL_GREEN   3
-#define UNKNOWN_BOARD               0xff
 
 char board_variant_names[4][16] = {
   "Black",
