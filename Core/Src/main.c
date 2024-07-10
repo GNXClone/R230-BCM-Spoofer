@@ -48,7 +48,11 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+uint8_t                 board_variant = UNKNOWN_BOARD;
+uint16_t                led_pin       = GPIO_PIN_NONE;
+uint8_t                 usart         = 1;
+uint32_t                usart3_gpio   = 0;
+UART_HandleTypeDef*     huart         = &huart1;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,6 +69,70 @@ static void MX_USART1_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+//-------------------------------------------------------------------------
+// BlackBoard:
+// Optionally install an LED on PB4 (Labelled V8 on back of board)
+// UART3 on PB10(TX) and PB11(RX)
+// CAN1 requires clearing these (Because GD32F105)
+//  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_SLEEP);
+//  CLEAR_BIT(hcan->Instance->MCR, CAN_MCR_DBF);
+// Power consumption: 54mA in sleep mode
+//                    64mA when active
+//-------------------------------------------------------------------------
+// Blue board:
+// UART3 on PC10(TX) and PC11(RX)
+// Power consumption: 69mA in sleep mode (with FTDI attached)
+//                    89mA when active   (with FTDI attached)
+//-------------------------------------------------------------------------
+// GreenBoard:
+// UART1 on PA9(TX) and PA10(RX)
+// Power consumption: 18mA in sleep mode
+//                    38mA when active
+//-------------------------------------------------------------------------
+// SmallGreen:
+// LED on PB9
+// UART1 on PA9(TX) and PA10(RX)
+// Power consumption: 18mA in sleep mode (Yes, same as large green)
+//                    38mA when active
+//-------------------------------------------------------------------------
+uint32_t board_variants[4][3] = {
+  {0x42319f17, 0x03323033, 0x3032334c}, // BOARD_VARIANT_BLACK - Verified CAN and USART3
+  {0x05d8ff39, 0x38365548, 0x43213544}, // BOARD_VARIANT_BLUE - Verified CAN and USART3
+  {0x05d8ff36, 0x37325553, 0x43184563}, // BOARD_VARIANT_GREEN - Verified CAN and USART1
+  {0x05d5ff30, 0x38374250, 0x43024338}  // BOARD_VARIANT_SMALL_GREEN - Verified
+};
+
+#define BOARD_VARIANT_BLACK         0
+#define BOARD_VARIANT_BLUE          1
+#define BOARD_VARIANT_GREEN         2
+#define BOARD_VARIANT_SMALL_GREEN   3
+#define UNKNOWN_BOARD               0xff
+
+char board_variant_names[4][16] = {
+  "Black",
+  "Blue",
+  "Green",
+  "Small Green"
+};
+
+uint8_t GetBoardVariant(void) {
+  uint32_t unique_id[3];
+  unique_id[0] = *(uint32_t*)(0x1FFFF7E8); // UID 31:0
+  unique_id[1] = *(uint32_t*)(0x1FFFF7EC); // UID 63:32
+  unique_id[2] = *(uint32_t*)(0x1FFFF7F0); // UID 95:64
+  sendDebugMsg("UniqueID: %08x %08x %08x \r\n", unique_id[0], unique_id[1], unique_id[2]);
+
+  for (uint8_t i = 0; i < sizeof(board_variants) / sizeof(board_variants[0]); i++) {
+    if (unique_id[0] == board_variants[i][0] &&
+        unique_id[1] == board_variants[i][1] &&
+        unique_id[2] == board_variants[i][2]) {
+      sendDebugMsg( "Board variant: %s\r\n", board_variant_names[i]);
+      return i; // Return the matching variant index
+    }
+  }
+  sendDebugMsg( "Unable to determine the board variant. Defaulting to %s settings.\r\n", board_variant_names[BOARD_VARIANT_SMALL_GREEN]);
+  return BOARD_VARIANT_SMALL_GREEN;
+}
 /* USER CODE END 0 */
 
 /**
@@ -75,6 +143,40 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+
+  board_variant = GetBoardVariant();
+  switch (board_variant) {
+    case BOARD_VARIANT_BLACK:
+      usart         = 3;
+      huart         = &huart3;
+      usart3_gpio   = GPIOB_BASE;
+      led_pin       = GPIO_PIN_4; // Must be installed by end user
+      break;
+    case BOARD_VARIANT_BLUE:
+      usart         = 3;
+      huart         = &huart3;
+      usart3_gpio   = GPIOC_BASE;
+      led_pin       = GPIO_PIN_NONE;
+      break;
+    case BOARD_VARIANT_GREEN:
+      usart         = 1;
+      huart         = &huart1;
+      usart3_gpio   = 0;
+      led_pin       = GPIO_PIN_NONE;
+      break;
+    case BOARD_VARIANT_SMALL_GREEN:
+      usart         = 1;
+      huart         = &huart1;
+      usart3_gpio   = 0;
+      led_pin       = GPIO_PIN_9; // Prepopulated by manufacturer
+      break;
+    default: // Defaults to same as SMALL GREEN if unknown
+      usart         = 1;
+      huart         = &huart1;
+      usart3_gpio   = 0;
+      led_pin       = GPIO_PIN_9;
+      break;
+  }
 
   /* USER CODE END 1 */
 
@@ -96,10 +198,10 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_USART1_UART_Init();
+  MX_USART3_UART_Init();
   MX_CAN1_Init();
   MX_CAN2_Init();
-  MX_USART3_UART_Init();
-  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -193,7 +295,10 @@ static void MX_CAN1_Init(void)
   hcan1.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan1) != HAL_OK)
   {
+    sendDebugMsg("CAN1 Init failed\r\n");
     Error_Handler();
+  } else {
+    sendDebugMsg("CAN1 Init OK\r\n");
   }
   /* USER CODE BEGIN CAN1_Init 2 */
   sFilterConfig.FilterBank = 0;
@@ -227,6 +332,7 @@ static void MX_CAN1_Init(void)
   */
 static void MX_CAN2_Init(void)
 {
+
   /* USER CODE BEGIN CAN2_Init 0 */
 #if ENABLE_CAN_2 == 1
   CAN_FilterTypeDef sFilterConfig;
@@ -274,6 +380,7 @@ static void MX_CAN2_Init(void)
   }
 #endif
   /* USER CODE END CAN2_Init 2 */
+
 }
 
 /**
@@ -283,8 +390,11 @@ static void MX_CAN2_Init(void)
   */
 static void MX_USART1_UART_Init(void)
 {
+
   /* USER CODE BEGIN USART1_Init 0 */
-#if ENABLE_USART_1 == 1
+  if (usart != 1) {
+    return;
+  }
   /* USER CODE END USART1_Init 0 */
 
   /* USER CODE BEGIN USART1_Init 1 */
@@ -303,8 +413,8 @@ static void MX_USART1_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART1_Init 2 */
-#endif
   /* USER CODE END USART1_Init 2 */
+
 }
 
 /**
@@ -314,8 +424,11 @@ static void MX_USART1_UART_Init(void)
   */
 static void MX_USART3_UART_Init(void)
 {
+
   /* USER CODE BEGIN USART3_Init 0 */
-#if ENABLE_USART_3 == 1
+  if (usart != 3) {
+    return;
+  }
   /* USER CODE END USART3_Init 0 */
 
   /* USER CODE BEGIN USART3_Init 1 */
@@ -334,8 +447,8 @@ static void MX_USART3_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART3_Init 2 */
-#endif
   /* USER CODE END USART3_Init 2 */
+
 }
 
 /**
@@ -350,20 +463,21 @@ static void MX_GPIO_Init(void)
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-//  __HAL_RCC_GPIOD_CLK_ENABLE();
-//  __HAL_RCC_GPIOA_CLK_ENABLE();
-//  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE(); // CAN2 & USART3 (black) & LED GPIO (small green)
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
+  if (led_pin != GPIO_PIN_NONE) {
+    HAL_GPIO_WritePin(GPIOB, led_pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    /*Configure GPIO pins : PB4 PB9 */
+    GPIO_InitStruct.Pin = led_pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+    HAL_GPIO_WritePin(GPIOB, led_pin, GPIO_PIN_SET); // Initially the LED is on
+  }
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -371,14 +485,23 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 void EnterSleepMode(void) {
-  // Turn off the LED and de-initialize the GPIO pin
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
-  HAL_GPIO_DeInit(GPIOB, GPIO_PIN_9);
-  __HAL_RCC_GPIOB_CLK_DISABLE();
+  sendDebugMsg("Entering low power mode\r\n");
 
-  // Power off USART1 and de-initialize the UART
-  HAL_UART_DeInit(&huart1);
-  __HAL_RCC_USART1_CLK_DISABLE();
+  // Turn off the LED and de-initialize the GPIO pin
+  if (led_pin != GPIO_PIN_NONE) {
+    HAL_GPIO_WritePin(GPIOB, led_pin, GPIO_PIN_RESET);
+    HAL_GPIO_DeInit(GPIOB, led_pin);
+    __HAL_RCC_GPIOB_CLK_DISABLE();
+  }
+
+  // Power off and de-initialize the UART
+  if (usart == 1) {
+    HAL_UART_DeInit(&huart1);
+    __HAL_RCC_USART1_CLK_DISABLE();
+  } else if (usart == 3) {
+    HAL_UART_DeInit(&huart3);
+    __HAL_RCC_USART3_CLK_DISABLE();
+  }
 }
 
 void ExitSleepMode(void) {
@@ -387,8 +510,15 @@ void ExitSleepMode(void) {
   MX_GPIO_Init();
 
   // Re-enable USART1 clock and re-initialize the UART
-  __HAL_RCC_USART1_CLK_ENABLE();
-  MX_USART1_UART_Init();
+  if (usart == 1) {
+    __HAL_RCC_USART1_CLK_ENABLE();
+    MX_USART1_UART_Init();
+  } else if (usart == 3) {
+    __HAL_RCC_USART3_CLK_ENABLE();
+    MX_USART3_UART_Init();
+  }
+
+  sendDebugMsg("Exited low power mode\r\n");
 }
 /* USER CODE END 4 */
 
