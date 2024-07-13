@@ -141,7 +141,10 @@ static void sendCANFrame (const CAN_FRAME* frame) {
       HAL_CAN_ResetError(&hcan1);
       printError("", "Tx Error", rc);
     }
+  } else {
+    printError("", "Tx Mailbox Full", rc);
   }
+  HAL_Delay(10); // Black board drops frames without this delay
 }
 
 static int handleCANFrame (const CAN_FRAME* recvFrame) {
